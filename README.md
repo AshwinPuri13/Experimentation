@@ -18,8 +18,10 @@ Repository of experiments designed to gauge the efficacy of statistical and data
 #2. R. Alizadehsani, M.H. Zangooei, M.J. Hosseini, J. Habibi, A. Khosravi, M. Roshanzamir, F. Khozeimeh, N. Sarrafzadegan, S. Nahavandi, Coronary artery disease detection using computational intelligence methods, Knowledge-Based Systems, 109 (2016) 187-197
 #3. Z. Arabasadi, R. Alizadehsani, M. Roshanzamir, H. Moosaei, and A. A. Yarifard, 'Computer aided decision making for heart disease detection using hybrid neural network-Genetic algorithm,' Computer Methods and Programs in Biomedicine, vol. 141, pp. 19-26, 2017/04/01/ 2017. ****
 
-[8] Sakar C.O., Serbes G., Gunduz A., Tunc H.C., Nizam H., Sakar B.E., Tutuncu M., Aydin T., Isenkul M.E. and Apaydin H., 2018. A comparative analysis of speech signal processing algorithms for Parkinson's disease classification and the use of the tunable Q-factor wavelet transform. Applied Soft Computing, DOI: https://www.sciencedirect.com/science/article/abs/pii/S1568494618305799?via%3Dihub, https://archive.ics.uci.edu/ml/datasets/Parkinson%27s+Disease+Classification.
+[7] Sakar C.O., Serbes G., Gunduz A., Tunc H.C., Nizam H., Sakar B.E., Tutuncu M., Aydin T., Isenkul M.E. and Apaydin H., 2018. A comparative analysis of speech signal processing algorithms for Parkinson's disease classification and the use of the tunable Q-factor wavelet transform. Applied Soft Computing, DOI: https://www.sciencedirect.com/science/article/abs/pii/S1568494618305799?via%3Dihub, https://archive.ics.uci.edu/ml/datasets/Parkinson%27s+Disease+Classification.
 
-[9] Dua D., and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science, https://archive.ics.uci.edu/ml/datasets/Musk+%28Version+1%29
+[8] Dua D., and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science, https://archive.ics.uci.edu/ml/datasets/Musk+%28Version+1%29
 
-[10] Dua D., and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science, https://archive.ics.uci.edu/ml/datasets/Spambase
+[9] Dua D., and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science, https://archive.ics.uci.edu/ml/datasets/Spambase
+
+[10] Dua D., and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science, https://archive.ics.uci.edu/ml/datasets/CNAE-9

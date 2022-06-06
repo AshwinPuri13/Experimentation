@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.semi_supervised import SelfTrainingClassifier
 
 from sklearn.model_selection import StratifiedShuffleSplit
@@ -65,13 +66,14 @@ class runExperiment:
         std, 97.5% and 2.5% quantiles of the f1 score/f1 score ratio of the models.
     """
     
-    def __init__(self, n_splits, test_size, f1_average_param,
-                 lo_unlabeled_pct = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]):
+    def __init__(self, n_splits, test_size, f1_average_param, is_NLP = False,
+                 lo_unlabeled_pct = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],):
         
         self.n_splits = n_splits
         self.test_size = test_size
-        self.lo_unlabeled_pct = lo_unlabeled_pct
         self.f1_average_param = f1_average_param
+        self.is_NLP = is_NLP
+        self.lo_unlabeled_pct = lo_unlabeled_pct    
         
     def fit(self, X, y):
         """
@@ -123,7 +125,16 @@ class runExperiment:
                 base_estimator = KNeighborsClassifier())
             }
         
-
+        if self.is_NLP:            
+            do_models['NB'] = MultinomialNB()
+            
+            do_models['STC-T-NB'] = SelfTrainingClassifier(
+                MultinomialNB())
+            
+            do_models['STC-K-NB'] = SelfTrainingClassifier(
+                criterion = 'k_best', k_best = int(0.025 * n_samples),
+                base_estimator = MultinomialNB())            
+        
         #using shuffle split since test size needs to be sufficient for f1 score to be meaningful
         kf = StratifiedShuffleSplit(n_splits = self.n_splits,
                                     test_size = self.test_size)
@@ -159,8 +170,6 @@ class runExperiment:
             if model_name[0:3] == 'STC':
                 self.results[model_name] /= self.results[model_name[6:]]
                 
-                
-                
         #median-unbiased method for interpolating quantiles since distribution is unknown
         self.agg_results = self.results.groupby(['Unlabeled Percent']).\
             agg([np.mean, np.std,
@@ -184,11 +193,22 @@ class runExperiment:
         None        
         """
         
-        fig, ax = plt.subplots(3,3, figsize=(10, 8))
+        if self.is_NLP:
+           n_plot_cols = 4
+           lo_model_names = ['LR', 'RF', 'KNN', 'NB',
+                              'STC-T-LR','STC-T-RF', 'STC-T-KNN', 'STC-T-NB',
+                              'STC-K-LR', 'STC-K-RF', 'STC-K-KNN', 'STC-K-NB']
+        else:
+           n_plot_cols = 3
+           lo_model_names = ['LR', 'RF', 'KNN',
+                              'STC-T-LR','STC-T-RF', 'STC-T-KNN',
+                              'STC-K-LR', 'STC-K-RF', 'STC-K-KNN'] 
+        
+        fig, ax = plt.subplots(3,n_plot_cols, figsize=(10, 10))
         
         i = j = 0            
         
-        for model_name in list(self.results)[1:]:
+        for model_name in lo_model_names:
             d = self.agg_results[model_name]
             upper = d['<lambda_1>'] 
             lower = d['<lambda_0>']
@@ -202,11 +222,12 @@ class runExperiment:
             if model_name[0:3] == 'STC':            
                 ax[i][j].axhline(1, color = 'green')
             
-            if j < 2:
+            if j < n_plot_cols - 1:
                 j += 1
             else:
                 i += 1
                 j = 0
+        
         
         fig.supylabel('1st row: F1 Score | 2nd, 3rd row: F1 Score Ratio')
         fig.supxlabel('Percentage of Unlabeled Data')
