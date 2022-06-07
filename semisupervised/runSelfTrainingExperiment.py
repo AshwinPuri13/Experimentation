@@ -6,6 +6,9 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.semi_supervised import SelfTrainingClassifier
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer
+
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.metrics import f1_score
 
@@ -66,13 +69,12 @@ class runExperiment:
         std, 97.5% and 2.5% quantiles of the f1 score/f1 score ratio of the models.
     """
     
-    def __init__(self, n_splits, test_size, f1_average_param, is_NLP = False,
-                 lo_unlabeled_pct = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],):
+    def __init__(self, n_splits, test_size, f1_average_param,
+                 lo_unlabeled_pct = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]):
         
         self.n_splits = n_splits
         self.test_size = test_size
         self.f1_average_param = f1_average_param
-        self.is_NLP = is_NLP
         self.lo_unlabeled_pct = lo_unlabeled_pct    
         
     def fit(self, X, y):
@@ -125,16 +127,6 @@ class runExperiment:
                 base_estimator = KNeighborsClassifier())
             }
         
-        if self.is_NLP:            
-            do_models['NB'] = MultinomialNB()
-            
-            do_models['STC-T-NB'] = SelfTrainingClassifier(
-                MultinomialNB())
-            
-            do_models['STC-K-NB'] = SelfTrainingClassifier(
-                criterion = 'k_best', k_best = int(0.025 * n_samples),
-                base_estimator = MultinomialNB())            
-        
         #using shuffle split since test size needs to be sufficient for f1 score to be meaningful
         kf = StratifiedShuffleSplit(n_splits = self.n_splits,
                                     test_size = self.test_size)
@@ -142,6 +134,7 @@ class runExperiment:
         for train_index, test_index in kf.split(X, y):
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
+                
 
             for unlabeled_pct in self.lo_unlabeled_pct:
                 y_train_unlab = y_train.copy()   
@@ -191,18 +184,12 @@ class runExperiment:
         Returns
         -------
         None        
-        """
-        
-        if self.is_NLP:
-           n_plot_cols = 4
-           lo_model_names = ['LR', 'RF', 'KNN', 'NB',
-                              'STC-T-LR','STC-T-RF', 'STC-T-KNN', 'STC-T-NB',
-                              'STC-K-LR', 'STC-K-RF', 'STC-K-KNN', 'STC-K-NB']
-        else:
-           n_plot_cols = 3
-           lo_model_names = ['LR', 'RF', 'KNN',
-                              'STC-T-LR','STC-T-RF', 'STC-T-KNN',
-                              'STC-K-LR', 'STC-K-RF', 'STC-K-KNN'] 
+        """        
+       
+        n_plot_cols = 3
+        lo_model_names = ['LR', 'RF', 'KNN',
+                           'STC-T-LR','STC-T-RF', 'STC-T-KNN',
+                           'STC-K-LR', 'STC-K-RF', 'STC-K-KNN'] 
         
         fig, ax = plt.subplots(3,n_plot_cols, figsize=(10, 10))
         
