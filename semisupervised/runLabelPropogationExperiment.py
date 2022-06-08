@@ -3,8 +3,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.semi_supervised import SelfTrainingClassifier
-
+from sklearn.svm import SVC
+from sklearn.semi_supervised import LabelPropagation
 
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.metrics import f1_score
@@ -20,8 +20,8 @@ class runExperiment:
     """
     
     This class trains and evaluates several different supervised classification
-    models, and their semi supervised extensions, on a given dataset where 
-    each of 10%, 20%, ..., 90% of the labels are intentionally removed.
+    models on a given dataset where each of 10%, 20%, ..., 90% of the labels are
+    intentionally removed and when those labels are relabeled through label propogation.
     
     Parameters:
     -----------
@@ -36,9 +36,13 @@ class runExperiment:
         The 'average' parameter of sklearn.metrics.f1_score.
         
     
-    lo_unlabeled_pct: list(float):
+    lo_unlabeled_pct: list(float)
         The percentages of missing data to train each model on. Each element 
         should be in (0,1).
+        
+        
+    gamma: float
+        The gamma parameter for label propogation. Only relevant when the kernel is rbf.
     
     Attributes:
     ----------
@@ -67,12 +71,14 @@ class runExperiment:
     """
     
     def __init__(self, n_splits, test_size, f1_average_param,
-                 lo_unlabeled_pct = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]):
+                 lo_unlabeled_pct = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+                 gamma = None):
         
         self.n_splits = n_splits
         self.test_size = test_size
+        self.lo_unlabeled_pct = lo_unlabeled_pct
         self.f1_average_param = f1_average_param
-        self.lo_unlabeled_pct = lo_unlabeled_pct    
+        self.gamma = gamma
         
     def fit(self, X, y):
         """
@@ -90,11 +96,11 @@ class runExperiment:
         -------
         None
         """        
-        
-        n_samples = len(y)        
+           
         self.results = pd.DataFrame()
         
-        #k in kbest is set to 2.5% of the sample size so that it scales across datasets
+        #we dont include LP into the pipeline because it has the possibility of relabeling labeled data
+        #so we use LP outside
         do_models = {
             'LR': LogisticRegression(max_iter = 500),
             
@@ -102,28 +108,42 @@ class runExperiment:
             
             'KNN': KNeighborsClassifier(),
             
-            'STC-T-LR': SelfTrainingClassifier(
-                LogisticRegression(max_iter = 500)),
+            'SVM': SVC(),
             
-            'STC-T-RF': SelfTrainingClassifier(
-                RandomForestClassifier(warm_start = False)),
+            'LP-R-LR': LogisticRegression(max_iter = 500),
             
-            'STC-T-KNN': SelfTrainingClassifier(
-                KNeighborsClassifier()),
+            'LP-R-RF': RandomForestClassifier(warm_start = False),
             
-            'STC-K-LR': SelfTrainingClassifier(
-                criterion = 'k_best', k_best = int(0.025 * n_samples),
-                base_estimator = LogisticRegression(max_iter = 500)),
+            'LP-R-KNN': KNeighborsClassifier(),
             
-            'STC-K-RF': SelfTrainingClassifier(
-                criterion = 'k_best', k_best = int(0.025 * n_samples),
-                base_estimator = RandomForestClassifier(warm_start = False)),
+            'LP-R-SVM': SVC(),
             
-            'STC-K-KNN': SelfTrainingClassifier(
-                criterion = 'k_best', k_best = int(0.025 * n_samples),
-                base_estimator = KNeighborsClassifier())
+            'LP-K-LR': LogisticRegression(max_iter = 500),
+            
+            'LP-K-RF': RandomForestClassifier(warm_start = False),
+            
+            'LP-K-KNN': KNeighborsClassifier(),
+            
+            'LP-K-SVM': SVC()
             }
         
+        # modified version of the rbf kernel to prevent overflow
+        # https://stackoverflow.com/questions/52057836/labelpropagation-how-to-avoid-division-by-zero
+        def rbf_kernel_safe(X, Y = None, gamma = self.gamma): 
+            
+          from sklearn.metrics.pairwise import check_pairwise_arrays
+          from sklearn.metrics.pairwise import euclidean_distances
+
+          X, Y = check_pairwise_arrays(X, Y) 
+          if gamma is None: 
+              gamma = 1.0 / X.shape[1] 
+    
+          K = euclidean_distances(X, Y, squared=True) 
+          K *= -gamma 
+          K -= K.max()
+          np.exp(K, K)    # exponentiate K in-place 
+          return K 
+
         #using shuffle split since test size needs to be sufficient for f1 score to be meaningful
         kf = StratifiedShuffleSplit(n_splits = self.n_splits,
                                     test_size = self.test_size)
@@ -131,19 +151,37 @@ class runExperiment:
         for train_index, test_index in kf.split(X, y):
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
-                
 
             for unlabeled_pct in self.lo_unlabeled_pct:
                 y_train_unlab = y_train.copy()   
-                y_train_unlab[sample(list(y_train_unlab.index),
-                                     k = int(unlabeled_pct * len(y_train_unlab)))] = -1
+                unlabel_set = sample(list(y_train_unlab.index),
+                                     k = int(unlabeled_pct * len(y_train_unlab)))
+                y_train_unlab[unlabel_set] = -1
 
-                do_scores = {'Unlabeled Percent': [unlabeled_pct]}                                                                     
+                do_scores = {'Unlabeled Percent': [unlabeled_pct]}      
+                LPK = LabelPropagation(kernel = 'knn', max_iter = 10000)
+                LPR =  LabelPropagation(kernel = rbf_kernel_safe, max_iter = 10000)
+                
+                LPK.fit(X_train, y_train_unlab)
+                LPR.fit(X_train, y_train_unlab)
+
+                y_train_relab_k = y_train_unlab.copy()
+                y_train_relab_k[unlabel_set] = pd.Series(LPK.transduction_,
+                                                       index = y_train_unlab.index)[unlabel_set]
+                y_train_relab_r = y_train_unlab.copy()
+                y_train_relab_r[unlabel_set] = pd.Series(LPR.transduction_,
+                                                       index = y_train_unlab.index)[unlabel_set]                                                           
                 
                 for model_name in do_models.keys():
-                    if model_name[0:3] == 'STC':                   
-                        do_models[model_name].\
-                            fit(X_train, y_train_unlab)
+                    if model_name[0:2] == 'LP':  
+                        
+                        if model_name[3] == 'K':
+                            do_models[model_name].\
+                                fit(X_train, y_train_relab_k)
+                        else:
+                            do_models[model_name].\
+                                fit(X_train, y_train_relab_r)                      
+            
                     else:
                         do_models[model_name].\
                             fit(X_train[y_train_unlab != - 1],
@@ -157,8 +195,9 @@ class runExperiment:
                 
         #for the STCs we replace their f1 scores ratios
         for model_name in do_models.keys():
-            if model_name[0:3] == 'STC':
-                self.results[model_name] /= self.results[model_name[6:]]
+            if model_name[0:2] == 'LP':
+                self.results[model_name] /= self.results[model_name[5:]]                
+                
                 
         #median-unbiased method for interpolating quantiles since distribution is unknown
         self.agg_results = self.results.groupby(['Unlabeled Percent']).\
@@ -181,18 +220,13 @@ class runExperiment:
         Returns
         -------
         None        
-        """        
-       
-        n_plot_cols = 3
-        lo_model_names = ['LR', 'RF', 'KNN',
-                           'STC-T-LR','STC-T-RF', 'STC-T-KNN',
-                           'STC-K-LR', 'STC-K-RF', 'STC-K-KNN'] 
+        """
         
-        fig, ax = plt.subplots(3,n_plot_cols, figsize=(10, 10))
+        fig, ax = plt.subplots(3,4, figsize=(10, 10))
         
         i = j = 0            
         
-        for model_name in lo_model_names:
+        for model_name in list(self.results)[1:]:
             d = self.agg_results[model_name]
             upper = d['<lambda_1>'] 
             lower = d['<lambda_0>']
@@ -203,15 +237,14 @@ class runExperiment:
             ax[i][j].set_xlabel('')
             ax[i][j].set_ylabel('')
             
-            if model_name[0:3] == 'STC':            
+            if model_name[0:2] == 'LP':            
                 ax[i][j].axhline(1, color = 'green')
             
-            if j < n_plot_cols - 1:
+            if j < 3:
                 j += 1
             else:
                 i += 1
                 j = 0
-        
         
         fig.supylabel('1st row: F1 Score | 2nd, 3rd row: F1 Score Ratio')
         fig.supxlabel('Percentage of Unlabeled Data')
